@@ -1,5 +1,7 @@
 # Payment Management
 
+[![Built with Claude Code](https://img.shields.io/badge/Built%20with-Claude%20Code-blueviolet?logo=anthropic)](https://claude.ai/code)
+
 API REST para gestionar proveedores y ordenes de pago usando Java 21, Spring Boot 3.x, Spring Web, Spring Data JPA, Validation, H2, Gradle, JUnit 5 y Mockito.
 
 ## Arquitectura
