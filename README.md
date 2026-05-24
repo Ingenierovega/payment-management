@@ -1,6 +1,6 @@
 # Payment Management
 
-API REST para gestionar proveedores y ordenes de pago usando Java 21, Spring Boot 3.x, Spring Web, Spring Data JPA, Validation, H2, Gradle, JUnit 5 y Mockito.
+API REST para gestionar proveedores y ordenes de pago usando Java 21, Spring Boot 3.x, Spring Web, Spring Data JPA, Validation, H2, Gradle, JUnit 5 y Mockito
 
 ## Arquitectura
 
