@@ -1,0 +1,1152 @@
+{
+  "info": {
+    "_postman_id": "d2a4a145-9c4d-4f88-9d8f-payment-management",
+    "name": "Payment Management - Criterios de Aceptacion",
+    "description": "Coleccion ordenada por criterios de aceptacion para probar proveedores, ordenes de pago, manejo de errores, documentacion y extras. Ejecutar de arriba hacia abajo con la aplicacion en http://localhost:8086.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "rootUrl",
+      "value": "http://localhost:8086",
+      "type": "string"
+    },
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8086/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "supplierId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inactiveSupplierId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "invalidTransitionOrderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rejectedOrderId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Bloque 1 - Gestion de proveedores",
+      "description": "Criterios 1 a 5: crear, listar, consultar, actualizar y cambiar estado de proveedores.",
+      "item": [
+        {
+          "name": "01 - Crear proveedor activo",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;",
+                  "pm.collectionVariables.set('runSuffix', suffix);",
+                  "pm.collectionVariables.set('activeSupplierTax', `NIT-ACT-${suffix}`);",
+                  "pm.collectionVariables.set('activeSupplierEmail', `activo.${suffix}@example.com`);",
+                  "pm.collectionVariables.set('inactiveSupplierTax', `NIT-INACT-${suffix}`);",
+                  "pm.collectionVariables.set('inactiveSupplierEmail', `inactivo.${suffix}@example.com`);",
+                  "pm.collectionVariables.set('updatedSupplierTax', `NIT-UPD-${suffix}`);",
+                  "pm.collectionVariables.set('updatedSupplierEmail', `actualizado.${suffix}@example.com`);",
+                  "pm.collectionVariables.set('idempotencyKey', `order-key-${suffix}`);",
+                  "pm.collectionVariables.set('invalidOrderKey', `invalid-order-key-${suffix}`);",
+                  "pm.collectionVariables.set('rejectedOrderKey', `rejected-order-key-${suffix}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201 Created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('supplierId', json.id);",
+                  "pm.test('Proveedor queda ACTIVO', function () { pm.expect(json.status).to.eql('ACTIVO'); });",
+                  "pm.test('NIT corresponde al enviado', function () { pm.expect(json.taxIdentificationNumber).to.eql(pm.collectionVariables.get('activeSupplierTax')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Proveedor Activo {{runSuffix}}\",\n  \"taxIdentificationNumber\": \"{{activeSupplierTax}}\",\n  \"email\": \"{{activeSupplierEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/suppliers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "02 - Rechazar proveedor con NIT duplicado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409 Conflict', function () { pm.response.to.have.status(409); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Respuesta de error descriptiva', function () {",
+                  "  pm.expect(json.status).to.eql(409);",
+                  "  pm.expect(json.message).to.include('numero tributario');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Proveedor Duplicado {{runSuffix}}\",\n  \"taxIdentificationNumber\": \"{{activeSupplierTax}}\",\n  \"email\": \"duplicado.{{runSuffix}}@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/suppliers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "03 - Listar proveedores con paginacion y filtro por estado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Respuesta paginada', function () {",
+                  "  pm.expect(json).to.have.property('content');",
+                  "  pm.expect(json).to.have.property('page');",
+                  "  pm.expect(json).to.have.property('size');",
+                  "  pm.expect(json.content).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/suppliers?status=ACTIVO&page=0&size=10&sort=businessName,asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "ACTIVO"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                },
+                {
+                  "key": "sort",
+                  "value": "businessName,asc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "04 - Consultar proveedor por identificador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Retorna el proveedor creado', function () { pm.expect(json.id).to.eql(pm.collectionVariables.get('supplierId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/suppliers/{{supplierId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers",
+                "{{supplierId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "05 - Actualizar datos de proveedor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Datos actualizados', function () {",
+                  "  pm.expect(json.businessName).to.eql('Proveedor Actualizado ' + pm.collectionVariables.get('runSuffix'));",
+                  "  pm.expect(json.taxIdentificationNumber).to.eql(pm.collectionVariables.get('updatedSupplierTax'));",
+                  "  pm.expect(json.email).to.eql(pm.collectionVariables.get('updatedSupplierEmail'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Proveedor Actualizado {{runSuffix}}\",\n  \"taxIdentificationNumber\": \"{{updatedSupplierTax}}\",\n  \"email\": \"{{updatedSupplierEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/suppliers/{{supplierId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers",
+                "{{supplierId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "06 - Crear proveedor para cambio de estado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201 Created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('inactiveSupplierId', json.id);",
+                  "pm.test('Proveedor auxiliar ACTIVO', function () { pm.expect(json.status).to.eql('ACTIVO'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Proveedor Para Inactivar {{runSuffix}}\",\n  \"taxIdentificationNumber\": \"{{inactiveSupplierTax}}\",\n  \"email\": \"{{inactiveSupplierEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/suppliers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "07 - Cambiar estado de proveedor a INACTIVO",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Proveedor queda INACTIVO', function () { pm.expect(json.status).to.eql('INACTIVO'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/suppliers/{{inactiveSupplierId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers",
+                "{{inactiveSupplierId}}",
+                "status"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bloque 2 - Gestion de ordenes de pago",
+      "description": "Criterios 6 a 9: crear, listar, consultar y transicionar ordenes de pago.",
+      "item": [
+        {
+          "name": "08 - Crear orden de pago para proveedor ACTIVO",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201 Created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('orderId', json.id);",
+                  "pm.test('Orden inicia en BORRADOR', function () { pm.expect(json.status).to.eql('BORRADOR'); });",
+                  "pm.test('Orden asociada al proveedor activo', function () { pm.expect(json.supplierId).to.eql(pm.collectionVariables.get('supplierId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"{{supplierId}}\",\n  \"amount\": 250000.00,\n  \"concept\": \"Servicios de soporte {{runSuffix}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "09 - Repetir creacion con Idempotency-Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK por idempotencia', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Retorna la misma orden', function () { pm.expect(json.id).to.eql(pm.collectionVariables.get('orderId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"{{supplierId}}\",\n  \"amount\": 250000.00,\n  \"concept\": \"Servicios de soporte {{runSuffix}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "10 - Rechazar orden para proveedor INACTIVO",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Error descriptivo por proveedor inactivo', function () { pm.expect(json.message).to.include('ACTIVO'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"{{inactiveSupplierId}}\",\n  \"amount\": 100000.00,\n  \"concept\": \"Orden que debe fallar por proveedor inactivo\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "11 - Listar ordenes con filtros por estado y proveedor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Respuesta paginada', function () {",
+                  "  pm.expect(json.content).to.be.an('array');",
+                  "  pm.expect(json).to.have.property('totalElements');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders?status=BORRADOR&supplierId={{supplierId}}&page=0&size=10&sort=createdAt,desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "BORRADOR"
+                },
+                {
+                  "key": "supplierId",
+                  "value": "{{supplierId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                },
+                {
+                  "key": "sort",
+                  "value": "createdAt,desc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "12 - Consultar orden por identificador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Retorna la orden creada', function () { pm.expect(json.id).to.eql(pm.collectionVariables.get('orderId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders",
+                "{{orderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "13 - Transicionar orden BORRADOR a APROBADA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Estado APROBADA', function () { pm.expect(json.status).to.eql('APROBADA'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APROBADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders",
+                "{{orderId}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "14 - Transicionar orden APROBADA a PAGADA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Estado PAGADA', function () { pm.expect(json.status).to.eql('PAGADA'); });",
+                  "pm.test('Registra paidAt', function () { pm.expect(json.paidAt).to.exist; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PAGADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders/{{orderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders",
+                "{{orderId}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "15 - Crear orden auxiliar para transicion invalida",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201 Created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('invalidTransitionOrderId', json.id);",
+                  "pm.test('Orden auxiliar queda BORRADOR', function () { pm.expect(json.status).to.eql('BORRADOR'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{invalidOrderKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"{{supplierId}}\",\n  \"amount\": 50000.00,\n  \"concept\": \"Orden auxiliar para transicion invalida {{runSuffix}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "16 - Rechazar transicion BORRADOR a PAGADA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Error descriptivo por transicion invalida', function () { pm.expect(json.message).to.include('no esta permitida'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PAGADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders/{{invalidTransitionOrderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders",
+                "{{invalidTransitionOrderId}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "17 - Crear orden auxiliar para rechazo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201 Created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('rejectedOrderId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{rejectedOrderKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"{{supplierId}}\",\n  \"amount\": 75000.00,\n  \"concept\": \"Orden auxiliar para rechazo {{runSuffix}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "18 - Transicionar orden BORRADOR a RECHAZADA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Estado RECHAZADA', function () { pm.expect(json.status).to.eql('RECHAZADA'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"RECHAZADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders/{{rejectedOrderId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders",
+                "{{rejectedOrderId}}",
+                "status"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bloque 3 - Calidad transversal y extras",
+      "description": "Criterios 10 a 14 y funcionalidades adicionales: errores coherentes, Swagger/OpenAPI, reporte agregado, vencimientos e idempotencia.",
+      "item": [
+        {
+          "name": "19 - Consultar proveedor inexistente retorna 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404 Not Found', function () { pm.response.to.have.status(404); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Cuerpo de error JSON', function () {",
+                  "  pm.expect(json.status).to.eql(404);",
+                  "  pm.expect(json).to.have.property('message');",
+                  "  pm.expect(json).to.have.property('path');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/suppliers/00000000-0000-0000-0000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers",
+                "00000000-0000-0000-0000-000000000000"
+              ]
+            }
+          }
+        },
+        {
+          "name": "20 - Crear proveedor invalido retorna 400 con fieldErrors",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Incluye errores de campos', function () {",
+                  "  pm.expect(json.status).to.eql(400);",
+                  "  pm.expect(json.fieldErrors).to.be.an('array');",
+                  "  pm.expect(json.fieldErrors.length).to.be.greaterThan(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"\",\n  \"taxIdentificationNumber\": \"\",\n  \"email\": \"correo-invalido\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/suppliers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "21 - Consultar documentacion OpenAPI",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Documento OpenAPI valido', function () {",
+                  "  pm.expect(json).to.have.property('openapi');",
+                  "  pm.expect(json).to.have.property('paths');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{rootUrl}}/v3/api-docs",
+              "host": [
+                "{{rootUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "22 - Reporte agregado total pagado por proveedor",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const now = new Date();",
+                  "const from = new Date(now);",
+                  "from.setDate(from.getDate() - 365);",
+                  "const to = new Date(now);",
+                  "to.setDate(to.getDate() + 365);",
+                  "pm.collectionVariables.set('reportFrom', from.toISOString());",
+                  "pm.collectionVariables.set('reportTo', to.toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Total pagado incluye la orden PAGADA', function () {",
+                  "  pm.expect(json.supplierId).to.eql(pm.collectionVariables.get('supplierId'));",
+                  "  pm.expect(Number(json.totalPaid)).to.be.at.least(250000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/suppliers/{{supplierId}}/paid-total?from={{reportFrom}}&to={{reportTo}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers",
+                "{{supplierId}}",
+                "paid-total"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{reportFrom}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{reportTo}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "23 - Consultar ordenes proximas a vencer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 OK', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Respuesta paginada', function () {",
+                  "  pm.expect(json.content).to.be.an('array');",
+                  "  pm.expect(json).to.have.property('totalElements');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders/due-soon?days=7&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders",
+                "due-soon"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "7"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "24 - Rechazar rango invalido de vencimiento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Error JSON descriptivo', function () {",
+                  "  pm.expect(json.status).to.eql(400);",
+                  "  pm.expect(json).to.have.property('fieldErrors');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment-orders/due-soon?days=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment-orders",
+                "due-soon"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
